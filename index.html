@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🎙️ NeuroClose: AI Sales Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+    @keyframes wave {
+      0%, 100% { height: 0.5rem; }
+      50% { height: 1.5rem; }
+    }
+    .animate-bar {
+      animation: wave 1s infinite ease-in-out;
+    }
+    .delay-75  { animation-delay: 0.075s; }
+    .delay-150 { animation-delay: 0.15s; }
+    .delay-225 { animation-delay: 0.225s; }
+    .delay-300 { animation-delay: 0.3s; }
+    #soundWave.inactive .bar {
+      animation: none !important;
+      height: 0.5rem !important;
+    }
+    .resizable {
+      resize: both;
+      overflow: auto;
+      min-width: 200px;
+      min-height: 120px;
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white transition-colors duration-300">
+  <button onclick="toggleDarkMode()" id="modeToggle" class="absolute top-4 right-4 px-3 py-1 border rounded text-blue-400 border-blue-400">
+    🌗 Dark Mode
+  </button>
+
+  <div class="max-w-7xl mx-auto p-6 pt-24">
+    <h1 class="text-2xl font-bold text-center mb-2">🎙️ NeuroClose: AI Sales Coach</h1>
+
+    <!-- 🔊 Sound Wave Visual -->
+    <div id="soundWave" class="inactive flex justify-center items-center mb-6 h-10">
+      <div class="bars flex space-x-1">
+        <div class="bar w-1 bg-blue-400 rounded animate-bar"></div>
+        <div class="bar w-1 bg-blue-400 rounded animate-bar delay-75"></div>
+        <div class="bar w-1 bg-blue-400 rounded animate-bar delay-150"></div>
+        <div class="bar w-1 bg-blue-400 rounded animate-bar delay-225"></div>
+        <div class="bar w-1 bg-blue-400 rounded animate-bar delay-300"></div>
+      </div>
+    </div>
+
+    <div class="flex justify-center mb-4">
+      <button id="analyzeNow" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+        ⏱ Analyze Now
+      </button>
+    </div>
+
+
+    <!-- Draggable + Resizable Cards -->
+    <div id="cards" class="flex flex-wrap gap-4 justify-start items-start">
+      <!-- Cards dynamically rendered -->
+    </div>
+  </div>
+
+  <script>
+    const sections = [
+      { id: 'timestamp', title: 'Timestamp', content: 'Waiting...' },
+      { id: 'state', title: 'Emotional State', content: 'Waiting...' },
+      { id: 'urgency', title: 'Urgency Level', content: 'Waiting...' },
+      { id: 'buyingTemp', title: 'Buying Temperature', content: 'Waiting...' },
+      { id: 'frameControl', title: 'Frame Control Rating', content: 'Waiting...' },
+      { id: 'questions', title: 'Next Questions', content: '<ul><li>Waiting...</li></ul>' },
+      { id: 'coachNote', title: 'Coach Note', content: 'Waiting for insights...' }
+    ];
+
+    const container = document.getElementById('cards');
+
+    const savedLayout = JSON.parse(localStorage.getItem('cardLayout')) || {
+      order: sections.map(s => s.id),
+      sizes: {}
+    };
+
+    function createCard({ id, title, content }) {
+      const card = document.createElement('div');
+      const size = savedLayout.sizes[id] || { width: 300, height: 'auto' };
+
+      card.className = 'resizable bg-white text-gray-900 rounded-lg shadow p-4 transition-all flex-shrink-0';
+      card.id = `card-${id}`;
+      card.style.width = `${size.width}px`;
+      if (size.height !== 'auto') card.style.height = `${size.height}px`;
+
+      card.innerHTML = `
+        <div class="flex justify-between items-center mb-2">
+          <h2 class="font-semibold">${title}</h2>
+          <button onclick="toggleContent('${id}')" class="text-sm text-blue-500 hover:underline">🙈 Hide</button>
+        </div>
+        <div id="${id}" class="card-content">${content}</div>
+      `;
+
+      const resizeObserver = new ResizeObserver(() => {
+        savedLayout.sizes[id] = {
+          width: Math.round(card.offsetWidth),
+          height: Math.round(card.offsetHeight)
+        };
+        localStorage.setItem('cardLayout', JSON.stringify(savedLayout));
+      });
+      resizeObserver.observe(card);
+
+      return card;
+    }
+
+    savedLayout.order.forEach(id => {
+      const section = sections.find(s => s.id === id);
+      if (section) container.appendChild(createCard(section));
+    });
+
+    const sortable = new Sortable(container, {
+      animation: 150,
+      onEnd: () => {
+        savedLayout.order = Array.from(container.children).map(child =>
+          child.id.replace('card-', '')
+        );
+        localStorage.setItem('cardLayout', JSON.stringify(savedLayout));
+      }
+    });
+
+    function toggleContent(id) {
+      const el = document.getElementById(id);
+      el.classList.toggle('hidden');
+    }
+
+    function toggleDarkMode() {
+      const body = document.body;
+      const isDark = body.classList.contains('bg-gray-900');
+      const toggleBtn = document.getElementById('modeToggle');
+
+      if (isDark) {
+        body.classList.remove('bg-gray-900', 'text-white');
+        body.classList.add('bg-gray-100', 'text-gray-900');
+        toggleBtn.textContent = '🌞 Light Mode';
+      } else {
+        body.classList.add('bg-gray-900', 'text-white');
+        body.classList.remove('bg-gray-100', 'text-gray-900');
+        toggleBtn.textContent = '🌗 Dark Mode';
+      }
+    }
+
+    // WebSocket for real-time updates
+    const ws = new WebSocket('ws://localhost:3000');
+    document.getElementById('analyzeNow').addEventListener('click', () => {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'analyze_now' }));
+    console.log("⏱ Analyze Now triggered");
+  } else {
+    console.warn("WebSocket not open. Cannot send Analyze Now.");
+  }
+});
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      const block = data.block || {};
+
+      // 🔊 Animate sound bars
+      const wave = document.getElementById('soundWave');
+      if (block.listening) {
+        wave.classList.remove('inactive');
+      } else {
+        wave.classList.add('inactive');
+      }
+
+      document.getElementById('timestamp').textContent = block.timestamp || '—';
+
+      const state = document.getElementById('state');
+      state.textContent = block.state || 'Unknown';
+      state.className = 'card-content font-bold ' + (block.state ? block.state.replace(/\s+/g, '_') : '');
+
+      document.getElementById('urgency').textContent = block.urgency || 'Unknown';
+      document.getElementById('buyingTemp').textContent = block.buyingTemp || 'Unknown';
+      document.getElementById('frameControl').textContent = block.frameControl ?? 'N/A';
+
+      const questions = Array.isArray(block.questions) && block.questions.length
+        ? block.questions
+        : Array.isArray(block.directiveQuestions) && block.directiveQuestions.length
+          ? block.directiveQuestions
+          : [];
+
+      document.getElementById('questions').innerHTML =
+        questions.length > 0
+          ? `<ul>${questions.map(q => `<li class="ml-4 list-disc">${q}</li>`).join('')}</ul>`
+          : '<ul><li>No questions returned.</li></ul>';
+
+      document.getElementById('coachNote').textContent =
+        typeof block.coachNote === 'string' ? block.coachNote : 'No coach note provided.';
+    };
+
+
+    </script>
+
+    <!-- 🎧 Audio Input Dropdown -->
+<div class="absolute top-6 left-6 bg-white text-black px-4 py-2 rounded shadow z-50 flex items-center space-x-2">
+  <label for="audioDevice" class="font-semibold">🎧 Audio Input:</label>
+  <div class="relative">
+    <select id="audioDevice" class="appearance-none bg-white text-black border border-gray-300 rounded px-3 py-1 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-400">
+    </select>
+    <svg class="w-4 h-4 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+    </svg>
+  </div>
+</div>
+
+<script>
+  const { ipcRenderer } = require('electron');
+
+  ipcRenderer.on('deviceList', (_, devices) => {
+    const dropdown = document.getElementById('audioDevice');
+    dropdown.innerHTML = '';
+    devices.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device;
+      option.text = device;
+      dropdown.appendChild(option);
+    });
+
+    dropdown.addEventListener('change', () => {
+      ipcRenderer.send('setDevice', dropdown.value);
+    });
+
+    if (devices.length) {
+      ipcRenderer.send('setDevice', devices[0]);
+    }
+  });
+
+  ipcRenderer.send('getDevices');
+</script>
+
+</body>
+</html>
+
